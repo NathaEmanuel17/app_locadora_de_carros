@@ -2535,16 +2535,6 @@ __webpack_require__.r(__webpack_exports__);
   components: {
     Paginate: _Paginate_vue__WEBPACK_IMPORTED_MODULE_0__["default"]
   },
-  computed: {
-    token: function token() {
-      var token = document.cookie.split(';').find(function (indice) {
-        return indice.includes('token=');
-      });
-      token = token.split('=')[1];
-      token = 'Bearer ' + token;
-      return token;
-    }
-  },
   data: function data() {
     return {
       urlBase: 'http://localhost:8000/api/v1/marca',
@@ -2575,9 +2565,7 @@ __webpack_require__.r(__webpack_exports__);
       var url = this.urlBase + '/' + this.$store.state.item.id;
       var config = {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'Accept': 'application/json',
-          'Authorization': this.token
+          'Content-Type': 'multipart/form-data'
         }
       };
       axios.post(url, formData, config).then(function (response) {
@@ -2599,14 +2587,8 @@ __webpack_require__.r(__webpack_exports__);
       }
       var formData = new FormData();
       formData.append('_method', 'delete');
-      var config = {
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': this.token
-        }
-      };
       var url = this.urlBase + '/' + this.$store.state.item.id;
-      axios.post(url, formData, config).then(function (response) {
+      axios.post(url, formData).then(function (response) {
         _this2.$store.state.transacao.status = 'sucesso';
         _this2.$store.state.transacao.mensagem = response.data.msg;
         _this2.carregarLista();
@@ -2645,15 +2627,9 @@ __webpack_require__.r(__webpack_exports__);
     },
     carregarLista: function carregarLista() {
       var _this3 = this;
-      var config = {
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': this.token
-        }
-      };
       var url = this.urlBase + '?' + this.urlPaginacao + this.urlFiltro;
       console.log(url);
-      axios.get(url, config).then(function (response) {
+      axios.get(url).then(function (response) {
         _this3.marcas = response.data;
         //console.log(this.marcas)
       })["catch"](function (errors) {
@@ -2671,9 +2647,7 @@ __webpack_require__.r(__webpack_exports__);
       formData.append('imagem', this.arquivoImagem[0]);
       var config = {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'Accept': 'application/json',
-          'Authorization': this.token
+          'Content-Type': 'multipart/form-data'
         }
       };
       axios.post(this.urlBase, formData, config).then(function (response) {
@@ -2900,6 +2874,20 @@ vue__WEBPACK_IMPORTED_MODULE_0__["default"].component('paginate-component', (__w
  * or customize the JavaScript scaffolding to fit your unique needs.
  */
 
+vue__WEBPACK_IMPORTED_MODULE_0__["default"].filter('formataDataTempoGlobal', function (d) {
+  if (!d) return '';
+  d = d.split('T');
+  var data = d[0];
+  var tempo = d[1];
+
+  //formatando a data
+  data = data.split('-');
+  data = data[2] + '/' + data[1] + '/' + data[0];
+
+  //formatando o tempo
+  tempo = tempo.split('.')[0];
+  return data + ' ' + tempo;
+});
 var app = new vue__WEBPACK_IMPORTED_MODULE_0__["default"]({
   el: '#app',
   store: store
@@ -2913,6 +2901,8 @@ var app = new vue__WEBPACK_IMPORTED_MODULE_0__["default"]({
   \***********************************/
 /***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
 
+var _require = __webpack_require__(/*! axios */ "./node_modules/axios/index.js"),
+  axios = _require["default"];
 window._ = __webpack_require__(/*! lodash */ "./node_modules/lodash/lodash.js");
 
 /**
@@ -2952,6 +2942,43 @@ window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 //     cluster: process.env.MIX_PUSHER_APP_CLUSTER,
 //     forceTLS: true
 // });
+
+/* interceptar os requests da aplicação */
+axios.interceptors.request.use(function (config) {
+  //deinifir para todas as requisições os parâmetros de accept e autorization
+  config.headers['Accept'] = 'application/json';
+
+  //recuperando o token de autorização dos cookies
+  var token = document.cookie.split(';').find(function (indice) {
+    return indice.includes('token=');
+  });
+  token = token.split('=')[1];
+  token = 'Bearer ' + token;
+  config.headers.Authorization = token;
+  console.log('Interceptando o request antes do envio', config);
+  return config;
+}, function (error) {
+  console.log('Erro na requisição: ', error);
+  return Promise.reject(error);
+});
+
+/* interceptar os responses da aplicação */
+axios.interceptors.response.use(function (response) {
+  console.log('Interceptando a resposta antes da aplicação', response);
+  return response;
+}, function (error) {
+  console.log('Erro na resposta: ', error.response);
+  if (error.response.status == 401 && error.response.data.message == 'Token has expired') {
+    console.log('Fazer uma nova requisição para rota refresh');
+    axios.post('http://localhost:8000/api/refresh').then(function (response) {
+      console.log('Refresh com sucesso: ', response);
+      document.cookie = 'token=' + response.data.token + ';SameSite=Lax';
+      console.log('Token atualizado: ', response.data.token);
+      window.location.reload();
+    });
+  }
+  return Promise.reject(error);
+});
 
 /***/ }),
 
@@ -39694,6 +39721,8 @@ var render = function () {
                       ? _c("img", {
                           attrs: {
                             src: "storage/" + _vm.$store.state.item.imagem,
+                            height: "50",
+                            width: "50",
                           },
                         })
                       : _vm._e(),
@@ -40170,7 +40199,7 @@ var render = function () {
                     ? _c("span", [
                         _vm._v(
                           "\n                        " +
-                            _vm._s("..." + valor) +
+                            _vm._s(_vm._f("formataDataTempoGlobal")(valor)) +
                             "\n                    "
                         ),
                       ])
